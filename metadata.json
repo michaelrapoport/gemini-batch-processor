@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Batch HTML Processor",
+  "description": "A dashboard to batch process HTML files using Gemini 3 Flash with customizable prompts and tools.",
+  "requestFramePermissions": []
+}
