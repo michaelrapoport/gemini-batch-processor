@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { BatchItem, ProcessingConfig, ProcessingStatus, ToolType, Stats } from './types';
 import { DashboardControls } from './components/DashboardControls';
 import { FileUploader } from './components/FileUploader';
@@ -16,6 +16,7 @@ const App: React.FC = () => {
     tool: ToolType.NONE,
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const isComponentMounted = useRef(true);
 
   // --- Computed Stats ---
   const stats: Stats = useMemo(() => {
@@ -31,6 +32,14 @@ const App: React.FC = () => {
       { total: 0, completed: 0, failed: 0, processing: 0, queued: 0 }
     );
   }, [items]);
+
+  // --- Lifecycle Ref ---
+  useEffect(() => {
+    isComponentMounted.current = true;
+    return () => {
+      isComponentMounted.current = false;
+    };
+  }, []);
 
   // --- Handlers ---
   const handleUpload = useCallback((newItems: BatchItem[]) => {
@@ -48,16 +57,12 @@ const App: React.FC = () => {
 
   const handleStart = useCallback(() => {
     if (items.some(i => i.status === ProcessingStatus.IDLE || i.status === ProcessingStatus.FAILED)) {
-        // Reset failed items to IDLE so they can be retried if user wants, 
-        // or just pick up IDLE ones.
-        // Here we just toggle the flag to start the effect loop.
         setIsProcessing(true);
     }
   }, [items]);
 
   const handleStop = useCallback(() => {
     setIsProcessing(false);
-    // Note: In-flight requests will complete, but new ones won't start.
   }, []);
 
   const handleReset = useCallback(() => {
@@ -75,15 +80,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isProcessing) return;
 
-    let mounted = true;
-
     const processNext = async () => {
       // 1. Check current concurrency
       const currentProcessing = items.filter(i => i.status === ProcessingStatus.PROCESSING).length;
       if (currentProcessing >= config.concurrency) return;
 
       // 2. Find next IDLE item
-      // We prioritize IDLE items.
       const nextItemIndex = items.findIndex(i => i.status === ProcessingStatus.IDLE);
       
       if (nextItemIndex === -1) {
@@ -113,7 +115,7 @@ const App: React.FC = () => {
           tool: config.tool
         });
 
-        if (mounted) {
+        if (isComponentMounted.current) {
           setItems(prev => prev.map(i => 
             i.id === itemToProcess.id 
               ? { ...i, status: ProcessingStatus.COMPLETED, response: responseText, endTime: Date.now() }
@@ -121,7 +123,7 @@ const App: React.FC = () => {
           ));
         }
       } catch (error: any) {
-        if (mounted) {
+        if (isComponentMounted.current) {
           setItems(prev => prev.map(i => 
             i.id === itemToProcess.id 
               ? { ...i, status: ProcessingStatus.FAILED, error: error.message, endTime: Date.now() }
@@ -131,27 +133,13 @@ const App: React.FC = () => {
       }
     };
 
-    // Run the processor loop
-    // We use a simplified polling/trigger mechanism here. 
-    // Whenever `items` changes (due to a completion), this effect re-runs.
-    // If we have capacity, we start the next one.
-    
-    // However, if we just rely on `items` dependency, it might trigger too often or create loops.
-    // A robust way in a simple effect is to set a small timeout loop or strictly check capacity.
-    
-    // Let's use an interval to constantly check queue while `isProcessing` is true.
-    // This avoids complex dependency chain issues for this scale.
-    const intervalId = setInterval(() => {
-        if (mounted && isProcessing) {
-             processNext();
-        }
-    }, 500); // Check every 500ms
+    // Execute directly. 
+    // This effect runs whenever `items` or `config` or `isProcessing` changes.
+    // If an item finishes, `setItems` triggers a re-render, which triggers this effect again,
+    // which will pick up the next item if capacity allows.
+    processNext();
 
-    return () => {
-      mounted = false;
-      clearInterval(intervalId);
-    };
-  }, [isProcessing, items, config]); // Dependencies: if config changes (e.g. concurrency), loop adapts.
+  }, [isProcessing, items, config]); 
 
 
   // --- Render ---

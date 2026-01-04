@@ -1,20 +1,90 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+```text
+   ____                _       _   
+  / ___| ___ _ __ ___ (_)_ __ (_)  
+ | |  _ / _ \ '_ ` _ \| | '_ \| |  
+ | |_| |  __/ | | | | | | | | | |  
+  \____|\___|_| |_| |_|_|_| |_|_|  
+      B A T C H   P R O C E S S O R
+```
 
-This contains everything you need to run your app locally.
+# Gemini Batch HTML Processor
 
-View your app in AI Studio: https://ai.studio/apps/drive/1odjbwjI6w_QTRG5mapHRSdJ0c5dSb16s
+A powerful, high-concurrency web dashboard designed to batch process HTML files using Google's **Gemini 3 Flash** model. This tool allows for bulk analysis, summarization, or transformation of HTML content with customizable system prompts and advanced tool integration.
 
-## Run Locally
+---
 
-**Prerequisites:**  Node.js
+## 🌟 Features
 
+*   **Batch Processing**: Upload and process multiple HTML files simultaneously.
+*   **Gemini 3 Flash**: Powered by the latest `gemini-3-flash-preview` model for high-speed, low-latency responses.
+*   **Concurrency Control**: Adjust parallel processing threads (1-5) to manage rate limits and speed.
+*   **Customizable Prompts**: Define specific system instructions for the model (e.g., "Extract SEO tags", "Summarize content").
+*   **Advanced Tools**:
+    *   **Google Search Grounding**: Augment responses with real-time web data.
+    *   **Code Execution**: Allow the model to write and execute Python code for complex logic.
+*   **Temperature Control**: Fine-tune the creativity vs. precision of the model.
+*   **Export Options**: Download individual results as Markdown or the entire batch as a structured JSON file.
+*   **Real-time Status**: Visual indicators for Queued, Processing, Completed, and Failed states.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🚀 Getting Started
+
+### Prerequisites
+
+*   Node.js (v18 or higher)
+*   A Google Cloud Project with the Gemini API enabled
+*   A valid `API_KEY`
+
+### Installation
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/michael-rapoport/gemini-batch-processor.git
+    cd gemini-batch-processor
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+3.  Set up your environment variables. Create a `.env` file in the root directory:
+    ```env
+    API_KEY=your_google_genai_api_key_here
+    ```
+
+4.  Start the development server:
+    ```bash
+    npm start
+    ```
+
+## 🛠️ Usage Guide
+
+1.  **Configuration**:
+    *   Enter your **System Prompt** in the text area.
+    *   Adjust **Temperature** (0.0 for strict tasks, 1.0+ for creative tasks).
+    *   Set **Concurrency** based on your API tier limits (default is 2).
+    *   Select a **Tool** if necessary (Google Search or Code Execution). Note: Tools are mutually exclusive.
+
+2.  **Upload**:
+    *   Click the upload area or drag and drop HTML files.
+
+3.  **Process**:
+    *   Click **Start Batch** to begin. The app will manage the queue based on your concurrency settings.
+    *   You can **Pause** the operation at any time.
+
+4.  **Results**:
+    *   View results in the library on the right.
+    *   Click the **Eye** icon to preview the markdown response.
+    *   Click the **Download** icon to save individual files.
+    *   Use **Export JSON** to save the entire session.
+
+## 👤 Credits
+
+**Architected and Designed by Michael Rapoport.**
+
+Built with:
+*   [React 19](https://react.dev/)
+*   [Tailwind CSS](https://tailwindcss.com/)
+*   [Google GenAI SDK](https://www.npmjs.com/package/@google/genai)
+*   [Lucide Icons](https://lucide.dev/)
