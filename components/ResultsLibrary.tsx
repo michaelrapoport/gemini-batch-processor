@@ -20,11 +20,16 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({ items, onDelete,
 
   const downloadItem = (item: BatchItem) => {
     if (!item.response) return;
-    const blob = new Blob([item.response], { type: 'text/markdown' });
+    // Changed to text/html
+    const blob = new Blob([item.response], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${item.file.name}_gemini.md`;
+    
+    // Smart renaming: remove old extension and append .html
+    const baseName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+    a.download = `${baseName}_processed.html`;
+    
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -125,7 +130,7 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({ items, onDelete,
                       <button
                         onClick={() => downloadItem(item)}
                         className="p-1.5 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                        title="Download Response"
+                        title="Download HTML"
                       >
                         <Download className="w-4 h-4" />
                       </button>

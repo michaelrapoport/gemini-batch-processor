@@ -27,28 +27,46 @@ export const generateResponse = async (options: GenerateOptions): Promise<string
     tools.push({ codeExecution: {} });
   }
 
+  // Enforce HTML codeblock output in the system prompt to ensure parsability
+  const strictSystemPrompt = `${options.systemPrompt}\n\nIMPORTANT: You must output your final response strictly wrapped in an HTML code block (e.g., \`\`\`html\n<your code here>\n\`\`\`). Do not include conversational text outside the code block.`;
+
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: options.content,
       config: {
-        systemInstruction: options.systemPrompt,
+        systemInstruction: strictSystemPrompt,
         temperature: options.temperature,
         tools: tools.length > 0 ? tools : undefined,
       },
     });
 
-    // Handle Google Search Grounding metadata if present
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     let text = response.text || "";
 
+    // 1. Extract HTML Code Block
+    // We look for ```html ... ``` or just ``` ... ``` to capture the code
+    const codeBlockMatch = text.match(/```(?:html)?\s*([\s\S]*?)\s*```/i);
+    
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      text = codeBlockMatch[1].trim();
+    } else {
+      // If no code block found, we keep the original text but trim it.
+      // This acts as a fallback if the model ignores the formatting instruction.
+      text = text.trim();
+    }
+
+    // 2. Handle Grounding (Sources) as HTML Comments
+    // We append sources as comments to keep the file valid HTML but still attribute data.
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (groundingChunks && groundingChunks.length > 0) {
-        text += "\n\n--- Sources ---\n";
+        let sourcesComment = "\n\n<!--\n--- GENERATED SOURCES ---\n";
         groundingChunks.forEach((chunk: any) => {
             if (chunk.web?.uri) {
-                text += `- [${chunk.web.title || "Source"}](${chunk.web.uri})\n`;
+                sourcesComment += `Title: ${chunk.web.title || "Source"}\nURL: ${chunk.web.uri}\n\n`;
             }
         });
+        sourcesComment += "-->";
+        text += sourcesComment;
     }
     
     return text;
