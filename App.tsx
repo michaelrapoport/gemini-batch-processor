@@ -10,7 +10,7 @@ const App: React.FC = () => {
   // --- State ---
   const [items, setItems] = useState<BatchItem[]>([]);
   const [config, setConfig] = useState<ProcessingConfig>({
-    systemPrompt: "You are a helpful AI assistant. Analyze the provided HTML content and provide a summary.",
+    systemPrompt: "You are a helpful AI assistant. Analyze the provided content and provide a summary.",
     temperature: 0.7,
     concurrency: 2,
     tool: ToolType.NONE,

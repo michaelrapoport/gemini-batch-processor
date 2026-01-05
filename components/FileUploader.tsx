@@ -40,7 +40,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUpload, disabled }
       <input
         type="file"
         multiple
-        accept=".html,.htm"
+        accept=".html,.htm,.txt,.md"
         className="hidden"
         ref={fileInputRef}
         onChange={handleFileChange}
@@ -60,10 +60,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUpload, disabled }
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-slate-700">
-            Click to upload HTML files
+            Click to upload files
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Supports batch upload (.html)
+            Supports HTML, TXT, Markdown
           </p>
         </div>
       </button>

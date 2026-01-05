@@ -8,15 +8,15 @@
       B A T C H   P R O C E S S O R
 ```
 
-# Gemini Batch HTML Processor
+# Gemini Batch Content Processor
 
-A powerful, high-concurrency web dashboard designed to batch process HTML files using Google's **Gemini 3 Flash** model. This tool allows for bulk analysis, summarization, or transformation of HTML content with customizable system prompts and advanced tool integration.
+A powerful, high-concurrency web dashboard designed to batch process **HTML, TXT, and Markdown** files using Google's **Gemini 3 Flash** model. This tool allows for bulk analysis, summarization, or transformation of content with customizable system prompts and advanced tool integration.
 
 ---
 
 ## 🌟 Features
 
-*   **Batch Processing**: Upload and process multiple HTML files simultaneously.
+*   **Batch Processing**: Upload and process multiple files (HTML, TXT, MD) simultaneously.
 *   **Gemini 3 Flash**: Powered by the latest `gemini-3-flash-preview` model for high-speed, low-latency responses.
 *   **Concurrency Control**: Adjust parallel processing threads (1-5) to manage rate limits and speed.
 *   **Customizable Prompts**: Define specific system instructions for the model (e.g., "Extract SEO tags", "Summarize content").
@@ -24,7 +24,7 @@ A powerful, high-concurrency web dashboard designed to batch process HTML files 
     *   **Google Search Grounding**: Augment responses with real-time web data.
     *   **Code Execution**: Allow the model to write and execute Python code for complex logic.
 *   **Temperature Control**: Fine-tune the creativity vs. precision of the model.
-*   **Export Options**: Download individual results as Markdown or the entire batch as a structured JSON file.
+*   **Export Options**: Download individual results as HTML or the entire batch as a structured JSON file.
 *   **Real-time Status**: Visual indicators for Queued, Processing, Completed, and Failed states.
 
 ## 🚀 Getting Started
@@ -67,7 +67,7 @@ A powerful, high-concurrency web dashboard designed to batch process HTML files 
     *   Select a **Tool** if necessary (Google Search or Code Execution). Note: Tools are mutually exclusive.
 
 2.  **Upload**:
-    *   Click the upload area or drag and drop HTML files.
+    *   Click the upload area or drag and drop files (**HTML, TXT, MD**).
 
 3.  **Process**:
     *   Click **Start Batch** to begin. The app will manage the queue based on your concurrency settings.
@@ -75,8 +75,8 @@ A powerful, high-concurrency web dashboard designed to batch process HTML files 
 
 4.  **Results**:
     *   View results in the library on the right.
-    *   Click the **Eye** icon to preview the markdown response.
-    *   Click the **Download** icon to save individual files.
+    *   Click the **Eye** icon to preview the response.
+    *   Click the **Download** icon to save individual files (saved as `.html` containing the processed output).
     *   Use **Export JSON** to save the entire session.
 
 ## 👤 Credits

@@ -1,5 +1,5 @@
 {
-  "name": "gemini-batch-html-processor",
+  "name": "gemini-batch-content-processor",
   "private": true,
   "version": "0.0.0",
   "type": "module",
