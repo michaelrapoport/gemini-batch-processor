@@ -26,7 +26,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUpload, disabled }
           id: generateId(),
           file,
           content: text,
-          status: ProcessingStatus.IDLE,
+          // Start in ANALYZING to trigger metadata extraction
+          status: ProcessingStatus.ANALYZING, 
         });
       }
       onUpload(newItems);

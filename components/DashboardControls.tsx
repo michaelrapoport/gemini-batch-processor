@@ -1,6 +1,6 @@
 import React from 'react';
 import { ProcessingConfig, ToolType } from '../types';
-import { Settings, Thermometer, Cpu, Search, Code, Activity } from 'lucide-react';
+import { Settings, Thermometer, Cpu, Search, Code, Activity, BarChart3 } from 'lucide-react';
 
 interface DashboardControlsProps {
   config: ProcessingConfig;
@@ -88,10 +88,41 @@ export const DashboardControls: React.FC<DashboardControlsProps> = ({ config, se
         </div>
       </div>
 
+      {/* Agents Toggle */}
+      <div className="space-y-3 pt-2">
+          <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
+            <Cpu className="w-4 h-4" /> Optional Agents
+          </label>
+          <div className="flex items-center gap-3">
+             <button
+                onClick={() => setConfig(prev => ({ ...prev, includeCharts: !prev.includeCharts }))}
+                disabled={disabled}
+                className={`flex-1 flex items-center justify-between px-4 py-2.5 rounded-lg border transition-all ${
+                    config.includeCharts
+                    ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-500'
+                    : 'bg-white border-slate-200 hover:bg-slate-50'
+                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+             >
+                <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-md ${config.includeCharts ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <BarChart3 className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                        <div className={`text-sm font-medium ${config.includeCharts ? 'text-indigo-900' : 'text-slate-700'}`}>Chart Agent</div>
+                        <div className="text-[10px] text-slate-500">Auto-visualize data</div>
+                    </div>
+                </div>
+                <div className={`w-9 h-5 rounded-full relative transition-colors ${config.includeCharts ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                    <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${config.includeCharts ? 'translate-x-4' : ''}`} />
+                </div>
+             </button>
+          </div>
+      </div>
+
       {/* Tools */}
-      <div className="space-y-3">
+      <div className="space-y-3 pt-2 border-t border-slate-100">
         <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
-          <Cpu className="w-4 h-4" /> Tools (Mutually Exclusive)
+          <Search className="w-4 h-4" /> External Tools
         </label>
         <div className="flex flex-col sm:flex-row gap-3">
           <button
@@ -120,9 +151,6 @@ export const DashboardControls: React.FC<DashboardControlsProps> = ({ config, se
             <span className="text-sm font-medium">Code Execution</span>
           </button>
         </div>
-        <p className="text-xs text-slate-500">
-          * Google Search cannot be combined with other tools.
-        </p>
       </div>
     </div>
   );
