@@ -87,10 +87,10 @@ export const Canvas = forwardRef<unknown, CanvasProps>(({ tdl }, ref) => {
   }));
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-50 cursor-grab active:cursor-grabbing select-none rounded-lg border border-slate-200">
-      <div className="absolute inset-0 opacity-5 pointer-events-none" 
+    <div className="relative w-full h-full overflow-hidden bg-slate-900 cursor-grab active:cursor-grabbing select-none rounded-lg border border-slate-700">
+      <div className="absolute inset-0 opacity-10 pointer-events-none" 
            style={{ 
-             backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', 
+             backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', 
              backgroundSize: '20px 20px' 
            }} 
       />
@@ -110,10 +110,10 @@ export const Canvas = forwardRef<unknown, CanvasProps>(({ tdl }, ref) => {
       </svg>
       
       {/* Floating Toolbar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 bg-white/90 backdrop-blur border border-slate-200 p-2 rounded-full shadow-lg">
-         <button onClick={zoomIn} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors font-mono text-lg font-bold">+</button>
-         <button onClick={zoomOut} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors font-mono text-lg font-bold">-</button>
-         <button onClick={resetZoom} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-sm font-bold">⟲</button>
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 bg-slate-800/90 backdrop-blur border border-slate-700 p-2 rounded-full shadow-lg">
+         <button onClick={zoomIn} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-slate-300 hover:bg-indigo-900 hover:text-indigo-400 transition-colors font-mono text-lg font-bold">+</button>
+         <button onClick={zoomOut} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-slate-300 hover:bg-indigo-900 hover:text-indigo-400 transition-colors font-mono text-lg font-bold">-</button>
+         <button onClick={resetZoom} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-slate-300 hover:bg-indigo-900 hover:text-indigo-400 transition-colors text-sm font-bold">⟲</button>
       </div>
     </div>
   );

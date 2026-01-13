@@ -39,7 +39,7 @@ interface BoundingBox { x: number; y: number; w: number; h: number; id: string; 
 export class TechDrawEngine {
   private svg: SVGSVGElement;
   private rootGroup: SVGGElement;
-  private currentTheme: TechDrawTheme = 'USPTO';
+  private currentTheme: TechDrawTheme = 'DARK'; // Default to DARK mode
   private layoutStrategy: LayoutStrategy = 'force';
   
   // Graph State

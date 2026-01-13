@@ -52,15 +52,15 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUpload, disabled }
         disabled={disabled}
         className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-colors ${
           disabled
-            ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-60'
-            : 'border-slate-300 hover:border-indigo-500 hover:bg-indigo-50 cursor-pointer bg-white'
+            ? 'border-slate-800 bg-slate-900 cursor-not-allowed opacity-50'
+            : 'border-slate-700 bg-slate-900 hover:border-indigo-500 hover:bg-slate-800 cursor-pointer'
         }`}
       >
-        <div className={`p-3 rounded-full ${disabled ? 'bg-slate-100' : 'bg-indigo-100'}`}>
-          <Upload className={`w-6 h-6 ${disabled ? 'text-slate-400' : 'text-indigo-600'}`} />
+        <div className={`p-3 rounded-full ${disabled ? 'bg-slate-800' : 'bg-slate-800'}`}>
+          <Upload className={`w-6 h-6 ${disabled ? 'text-slate-600' : 'text-indigo-400'}`} />
         </div>
         <div className="text-center">
-          <p className="text-sm font-medium text-slate-700">
+          <p className="text-sm font-medium text-slate-300">
             Click to upload files
           </p>
           <p className="text-xs text-slate-500 mt-1">

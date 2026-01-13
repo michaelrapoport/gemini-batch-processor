@@ -1,4 +1,5 @@
-import { GoogleGenAI, Tool } from "@google/genai";
+
+import { GoogleGenAI, Tool, Type } from "@google/genai";
 import { ToolType } from "../types";
 
 const MODEL_NAME = "gemini-3-flash-preview";
@@ -9,7 +10,8 @@ interface GenerateOptions {
   temperature: number;
   tool: ToolType;
   includeCharts?: boolean;
-  titleOverride?: string; // New field to force a specific title version
+  includeTechDraw?: boolean;
+  titleOverride?: string;
 }
 
 export interface GenerateResult {
@@ -18,93 +20,149 @@ export interface GenerateResult {
 }
 
 const ANALYSIS_AGENT_PROMPT = `
-ROLE: Professional Patent Attorney & Technical Writer.
-TASK: Transform the provided input into a formal USPTO Patent Application in HTML5.
+ROLE: Professional Patent Attorney & Technical Writer with Research Capabilities
 
-STRICT OUTPUT FORMATTING RULES:
-1. OUTPUT FORMAT: Pure, semantic HTML5 inside a single div.
-2. TONE: Highly formal, legal, and technical.
-3. TYPOGRAPHY & LAYOUT:
-   - Use <div class="patent-wrapper"> as the outer container.
-   - Use <header class="patent-biblio"> for the data sheet (Title, Date, Inventors).
-   - Use <h1> for the Title of the Invention (All Caps).
-     * CRITICAL TITLE RULE: If the user or system provides a specific TITLE in the instructions, you MUST use that exact title (including version numbers like "V2"). Do not invent a new one if provided.
-   - Use <h2> for Section Headers (e.g., BACKGROUND, SUMMARY).
-   - Use <p> for standard paragraphs.
-   - Use <ol class="patent-claims"> for the Claims section.
+TASK: Transform the provided input into a complete, professionally formatted USPTO Patent Application in HTML5/CSS4, conducting comprehensive research to fill gaps and generate supporting visual materials.
 
-4. MATH & FORMULAS (LaTeX Style):
-   - You MUST identify all mathematical formulas.
-   - Render them as semantic HTML, but style them to look like LaTeX.
-   - Wrap block-level formulas in <div class="math-block">.
-   - Wrap inline variables in <span class="math-var"> (e.g., <i>x</i>, <i>&theta;</i>).
-   - Use proper HTML entities for symbols: &Sigma; (sum), &int; (integral), &partial; (partial), &infin; (infinity), &ne; (not equal).
-   - Example Output: <div class="math-block"><i>E</i> = <i>mc</i><sup>2</sup></div>
+═══════════════════════════════════════════════════════════════════════════
 
-5. REQUIRED SECTIONS:
-   - [BIBLIOGRAPHIC DATA] (Title, Inventors, Assignee Draft)
-   - CROSS-REFERENCE TO RELATED APPLICATIONS
-   - BACKGROUND OF THE INVENTION
-   - BRIEF SUMMARY OF THE INVENTION
-   - BRIEF DESCRIPTION OF THE DRAWINGS (Refencing FIG. 1, FIG. 2...)
-   - DETAILED DESCRIPTION OF THE INVENTION
-   - CLAIMS (Must be strictly numbered starting at 1).
+PHASE 1: RESEARCH & ANALYSIS
 
-6. CHARTING:
-   - If data is present, insert <div class="ai-chart-data"> blocks as specified in the Chart Agent instructions.
+Before generating the patent document, you MUST:
+
+1. INFORMATION GAP ANALYSIS:
+   - Identify missing technical specifications, prior art, scientific principles, or industry standards.
+
+2. AUTOMATED RESEARCH (Use googleSearch tool if available):
+   - Search for prior art and existing patents in the same domain.
+   - Research technical specifications and industry standards.
+   - Gather scientific data to support claims.
+   - Verify technical terminology.
+
+3. TECHNICAL DRAWING IDENTIFICATION:
+   - Identify minimum 3-7 figures needed.
+   - For each figure, create a detailed image generation prompt description in the "BRIEF DESCRIPTION OF THE DRAWINGS" section.
+   - FORMAT: Use the exact placeholder format: [IMAGE: FIG. X - Description]
+
+═══════════════════════════════════════════════════════════════════════════
+
+PHASE 2: OUTPUT FORMATTING RULES
+
+1. OUTPUT FORMAT: Complete HTML5 document with embedded CSS4 in <style> tags.
+2. HTML STRUCTURE:
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+       <meta charset="UTF-8">
+       <title>Patent Application</title>
+       <style>/* CSS4 STYLING HERE */</style>
+   </head>
+   <body>
+       <div class="patent-wrapper">
+           <!-- PATENT CONTENT -->
+       </div>
+   </body>
+   </html>
+
+3. LATEX-STYLE MATHEMATICAL NOTATION:
+   - Block equations: <div class="math-block">...</div>
+   - Inline variables: <span class="math-var">...</span>
+   - Superscripts/Subscripts: <sup>, <sub>
+
+4. TYPOGRAPHY & LAYOUT:
+   - Outer container: <div class="patent-wrapper">
+   - Bibliographic data: <header class="patent-biblio">
+   - Title: <h1> (ALL CAPS) - CRITICAL: Use EXACT title provided in instructions.
+   - Claims: <ol class="patent-claims"> with <li class="independent-claim"> or <li class="dependent-claim">
+
+═══════════════════════════════════════════════════════════════════════════
+
+PHASE 3: REQUIRED SECTIONS
+
+1. TITLE OF THE INVENTION (ALL CAPS)
+2. BIBLIOGRAPHIC DATA (Application Number [TBD], Filing Date, Inventor, Assignee, Classification Codes)
+3. CROSS-REFERENCE TO RELATED APPLICATIONS
+4. STATEMENT REGARDING FEDERALLY SPONSORED RESEARCH ("Not Applicable" if none)
+5. REFERENCE TO SEQUENCE LISTING (if applicable)
+6. BACKGROUND OF THE INVENTION (Field, Related Art, Problem Statement)
+7. BRIEF SUMMARY OF THE INVENTION
+8. BRIEF DESCRIPTION OF THE DRAWINGS
+   - FIG. 1 is a...
+   - Insert [IMAGE: FIG. X - Description] placeholders
+9. DETAILED DESCRIPTION OF THE INVENTION (Use reference numerals 100, 102...)
+10. DESCRIPTION OF PREFERRED EMBODIMENTS
+11. INDUSTRIAL APPLICABILITY
+12. ADVANTAGES OVER PRIOR ART
+13. CLAIMS (Minimum 10-20, start with Independent, then Dependent)
+14. ABSTRACT (150 words max)
+15. CONCLUSION
+
+═══════════════════════════════════════════════════════════════════════════
+
+PHASE 4: CSS4 STYLING TEMPLATE
+
+Include this CSS in the <style> tag:
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.8; color: #000; background: #f1f5f9; }
+.patent-wrapper { max-width: 8.5in; margin: 0 auto; padding: 1in; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.patent-biblio { border-bottom: 2px solid #000; padding-bottom: 1em; margin-bottom: 2em; text-align: center; }
+h1 { font-size: 16pt; font-weight: bold; text-align: center; margin: 1em 0; text-transform: uppercase; text-decoration: underline; }
+h2 { font-size: 14pt; font-weight: bold; margin-top: 1.5em; margin-bottom: 0.5em; text-transform: uppercase; text-align: center; }
+h3 { font-size: 12pt; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+p { text-align: justify; text-indent: 0.5in; margin-bottom: 0.5em; }
+.math-block { display: block; text-align: center; margin: 1em 0; padding: 0.5em; font-size: 14pt; font-style: italic; background: #fcfcfc; border-left: 3px solid #000; }
+.math-var { font-style: italic; font-family: 'Times New Roman', serif; }
+.patent-claims { list-style-type: none; counter-reset: claim-counter; margin-left: 0; padding-left: 0; margin-top: 2rem; }
+.patent-claims > li { counter-increment: claim-counter; margin-bottom: 1em; text-align: justify; position: relative; padding-left: 0.5in; }
+.patent-claims > li::before { content: "Claim " counter(claim-counter) ". "; font-weight: bold; position: absolute; left: 0; top: 0; }
+.dependent-claim { margin-left: 0.5in; }
+.independent-claim { margin-left: 0; font-weight: 500; }
+@media print { body { background: white; } .patent-wrapper { margin: 0; padding: 0; box-shadow: none; width: 100%; max-width: none; } }
+
+═══════════════════════════════════════════════════════════════════════════
+
+CHARTING INSTRUCTIONS:
+If data visualization is needed, insert <div class="ai-chart-data"> blocks as specified:
+<div class="ai-chart-data" style="display:none;">
+  { "type": "bar", "title": "Figure X", "data": [...] }
+</div>
 `;
 
-const CHART_AGENT_INSTRUCTIONS = `
-7. CHART AGENT (Data Visualization):
-   - If you encounter numerical data, statistical trends, or comparisons:
-     a) Determine the best visualization type: 'bar', 'line', 'area', 'pie', 'scatter', or 'radar'.
-     b) Extract the data into a clean JSON structure.
-     c) INSERT the chart directly into the HTML flow.
-   
-   - USE THE FOLLOWING TAG STRUCTURE EXACTLY:
-     <div class="ai-chart-data" style="display:none;">
-       {
-         "type": "bar",
-         "title": "Figure X: Descriptive Title",
-         "xAxisKey": "name", 
-         "dataKeys": [{"key": "value", "color": "#8884d8", "name": "Label"}],
-         "data": [
-           {"name": "A", "value": 10},
-           {"name": "B", "value": 20}
-         ]
-       }
-     </div>
-`;
-
-const TECHDRAW_AGENT_PROMPT = `
-ROLE: Technical Drawing Agent.
-TASK: Analyze the provided text content. If it describes a technical system, mechanical structure, software architecture, flowchart, or logical process, generate a TechDraw Language (TDL) diagram visualization.
-
-RULES:
-1. Output strictly the TDL code block (e.g., \`\`\`tdl ... \`\`\`).
-2. If the content is too abstract, simple, or lacks structural relationships suitable for a diagram, return the string "NO_DIAGRAM" and nothing else.
-3. Do not include any conversational text or markdown explanation.
+const TECHDRAW_INJECTION_SYSTEM_PROMPT = `
+You are a Technical Drawing Specialist Agent.
+Your task is to generate "TechDraw Language" (TDL) DSL code for specific figure descriptions found in a patent application.
 
 TECHDRAW LANGUAGE (TDL) SYNTAX:
 - Define Nodes: \`id: type "Label" { properties }\`
 - Define Links: \`id1 -> id2 "Label" { properties }\`
-- Properties are JSON-like.
+- Link Properties: { style: 'dashed'|'thick', arrow: 'end'|'both'|'none', label: 'text' }
 
 AVAILABLE COMPONENT TYPES:
-- Generic: rect, circle, cloud, database, server, box
-- Logic/Circuits: flow_start, flow_process, flow_decision, resistor, capacitor, inductor, diode, led, opamp, transistor_npn, gate_and, gate_or, gate_not, gate_nand, gate_nor, gate_xor
-- 3D/Mech: wireframe_cube, gear, piston, valve, spring, crank, coil
+- Generic: rect, circle, cloud, database, server, box, block
+- Flowcharts: flow_start, flow_process, flow_decision, flow_end (Use these for method/process figures)
+- Logic/Circuits: resistor, capacitor, inductor, diode, led, opamp, transistor_npn, gate_and, gate_or, gate_not, gate_nand, gate_nor, gate_xor
+- 3D/Mech: wireframe_cube, gear, piston, valve, spring, crank, coil, nozzle
 - Charts: chart_bar, chart_line
 
-EXAMPLE:
-\`\`\`tdl
-u1: user "User"
-s1: server "API Server" { width: 120 }
-db: database "Main DB"
-u1 -> s1 "Request"
-s1 -> db "Query"
-\`\`\`
+RULES:
+1. You will receive a JSON list of figure descriptions.
+2. You must return a JSON object where keys are the Figure IDs (e.g., "FIG. 1") and values are the TDL code strings.
+3. The TDL code must be valid and represent the system described.
+4. For complex systems, simplify into block diagrams.
+5. For methods/processes, use flow_* components.
 `;
+
+/**
+ * Clean raw title strings from LLM artifacts
+ */
+const cleanRawTitle = (raw: string): string => {
+    if (!raw) return "Untitled Invention";
+    let clean = raw.replace(/^(Title|Subject|Invention):\s*/i, '');
+    clean = clean.replace(/\*\*|__/g, '').replace(/\*|_/g, '');
+    clean = clean.replace(/^["']|["']$/g, '');
+    clean = clean.trim().replace(/[\r\n]+/g, ' ');
+    return clean;
+};
 
 // Helper to get Title Metadata
 export const extractTitle = async (content: string): Promise<string> => {
@@ -112,18 +170,107 @@ export const extractTitle = async (content: string): Promise<string> => {
     if (!apiKey) throw new Error("Missing API Key");
     const ai = new GoogleGenAI({ apiKey });
     
-    // Using a fast model for metadata extraction
     const response = await ai.models.generateContent({
         model: MODEL_NAME,
         contents: content,
         config: {
-            systemInstruction: "You are a patent librarian. Extract the specific Technical Title of the invention described in the text. Output ONLY the title, no other text. Capitalize it properly.",
+            systemInstruction: `
+              You are a Patent Analysis and Title Extraction System. 
+              TASK: Analyze the input text and extract the most accurate Technical Title for the invention.
+              RULES:
+              1. If a clear title exists (e.g., "METHOD FOR...", "SYSTEM FOR..."), use it.
+              2. If no title exists, generate a concise, accurate technical title.
+              3. Remove words like "Patent Application", "Draft", "Confidential".
+              4. Output ONLY the raw title string. Do not use quotes.
+              5. Convert to Title Case.
+              6. Format: "[Provisional/Non-Provisional] - [Title] - [Date/Version]"
+            `,
             temperature: 0.1,
-            maxOutputTokens: 50
+            maxOutputTokens: 100
         }
     });
     
-    return response.text?.trim() || "Untitled Invention";
+    return cleanRawTitle(response.text || "");
+};
+
+// --- TECH DRAW INJECTION LOGIC ---
+
+const processTechDrawEmbeddings = async (html: string, apiKey: string): Promise<string> => {
+    // 1. Find all placeholders
+    const regex = /\[IMAGE: (FIG\. \d+) - (.*?)\]/g;
+    const matches = [...html.matchAll(regex)];
+    
+    if (matches.length === 0) return html;
+
+    const figuresToGen = matches.map(m => ({
+        id: m[1],
+        description: m[2]
+    }));
+
+    // 2. Batch Request to Gemini
+    const ai = new GoogleGenAI({ apiKey });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: JSON.stringify(figuresToGen),
+            config: {
+                systemInstruction: TECHDRAW_INJECTION_SYSTEM_PROMPT,
+                temperature: 0.2,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    description: "Map of Figure IDs to TDL Code",
+                    properties: {
+                         figures: {
+                             type: Type.ARRAY,
+                             items: {
+                                 type: Type.OBJECT,
+                                 properties: {
+                                     id: { type: Type.STRING },
+                                     tdl: { type: Type.STRING }
+                                 }
+                             }
+                         }
+                    }
+                }
+            }
+        });
+
+        // 3. Parse and Replace
+        const jsonResponse = JSON.parse(response.text || "{}");
+        const resultMap = new Map<string, string>();
+        
+        if (jsonResponse.figures && Array.isArray(jsonResponse.figures)) {
+            jsonResponse.figures.forEach((f: any) => {
+                resultMap.set(f.id, f.tdl);
+            });
+        }
+
+        let newHtml = html;
+        matches.forEach(match => {
+             const fullMatch = match[0];
+             const figId = match[1];
+             const tdl = resultMap.get(figId);
+             
+             if (tdl) {
+                 // Inject the TDL into a special div that React will parse
+                 // We encode TDL slightly to avoid HTML attribute breaking, though data attributes are usually safe with quotes
+                 const safeTdl = tdl.replace(/"/g, '&quot;');
+                 const replacement = `<div class="ai-techdraw-viz" data-tdl="${safeTdl}"></div>`;
+                 newHtml = newHtml.replace(fullMatch, replacement);
+             } else {
+                 // Fallback if generation failed but tag exists
+                 newHtml = newHtml.replace(fullMatch, `<div class="placeholder-error" style="border:1px dashed red; padding:10px; color:red;">[Missing Diagram: ${figId}]</div>`);
+             }
+        });
+
+        return newHtml;
+
+    } catch (e) {
+        console.error("TechDraw Injection Failed:", e);
+        return html; // Return original on failure
+    }
 };
 
 export const generateResponse = async (options: GenerateOptions): Promise<GenerateResult> => {
@@ -144,40 +291,23 @@ export const generateResponse = async (options: GenerateOptions): Promise<Genera
   // Inject Title Override if present
   let finalSystemPrompt = options.systemPrompt;
   if (options.titleOverride) {
-      finalSystemPrompt += `\n\nIMPORTANT: The title of this patent application MUST be exactly: "${options.titleOverride}". Use this in the <H1> tag.`;
+      finalSystemPrompt += `\n\nIMPORTANT: The title of this patent application MUST be exactly: "${options.titleOverride}". Use this string EXACTLY in the <H1> tag.`;
   }
   
   let finalAnalysisPrompt = `${finalSystemPrompt}\n\n${ANALYSIS_AGENT_PROMPT}`;
-  
-  if (options.includeCharts) {
-      finalAnalysisPrompt += `\n\n${CHART_AGENT_INSTRUCTIONS}`;
-  }
 
   try {
-    // Run agents in parallel
-    const [analysisResponse, diagramResponse] = await Promise.all([
-        // 1. Analysis / Formatting Agent ( + Chart Agent if enabled)
-        ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: options.content,
-            config: {
-                systemInstruction: finalAnalysisPrompt,
-                temperature: options.temperature,
-                maxOutputTokens: 8192, // Ensure full response for large files
-                tools: analysisTools.length > 0 ? analysisTools : undefined,
-            },
-        }),
-        // 2. TechDraw Agent
-        ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: options.content,
-            config: {
-                systemInstruction: TECHDRAW_AGENT_PROMPT,
-                temperature: 0.2, // Low temperature for syntax correctness
-                maxOutputTokens: 8192, // Ensure complex diagrams aren't cut off
-            },
-        })
-    ]);
+    // 1. Analysis / Formatting Agent (Primary)
+    const analysisResponse = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: options.content,
+        config: {
+            systemInstruction: finalAnalysisPrompt,
+            temperature: options.temperature,
+            maxOutputTokens: 8192, 
+            tools: analysisTools.length > 0 ? analysisTools : undefined,
+        },
+    });
 
     // --- Process Analysis Output ---
     let rawAnalysisText = analysisResponse.text || "";
@@ -190,7 +320,7 @@ export const generateResponse = async (options: GenerateOptions): Promise<Genera
       htmlText = rawAnalysisText.trim();
     }
 
-    // Handle Grounding (Sources) from Analysis Agent
+    // Handle Grounding (Sources)
     const groundingChunks = analysisResponse.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (groundingChunks && groundingChunks.length > 0) {
         let sourcesComment = "\n\n<!--\n--- GENERATED SOURCES ---\n";
@@ -200,29 +330,24 @@ export const generateResponse = async (options: GenerateOptions): Promise<Genera
             }
         });
         sourcesComment += "-->";
-        htmlText += sourcesComment;
+        if (htmlText.includes('</body>')) {
+            htmlText = htmlText.replace('</body>', `${sourcesComment}\n</body>`);
+        } else {
+            htmlText += sourcesComment;
+        }
     }
 
-    // --- Process Diagram Output ---
-    let rawDiagramText = diagramResponse.text || "";
-    let tdlText = "";
-
-    if (!rawDiagramText.includes("NO_DIAGRAM")) {
-        const tdlMatch = rawDiagramText.match(/```(?:tdl|techdraw)\s*([\s\S]*?)\s*```/i);
-        if (tdlMatch && tdlMatch[1]) {
-            tdlText = tdlMatch[1].trim();
-        } else {
-            // Fallback: assume the whole response is TDL if it doesn't have code blocks but looks like it
-            // (e.g. strict agent just outputted code)
-            if (rawDiagramText.includes("->") || rawDiagramText.includes(":")) {
-                tdlText = rawDiagramText.trim();
-            }
-        }
+    // --- TechDraw Replacement Agent (Post-Processing) ---
+    // Only run if requested and if valid HTML was generated
+    if (options.includeTechDraw && htmlText.length > 0) {
+        htmlText = await processTechDrawEmbeddings(htmlText, apiKey);
     }
     
     return {
         text: htmlText,
-        tdl: tdlText || undefined
+        // Legacy TDL support (optional) - if user runs without replacement agent, 
+        // we could still return a single diagram if we wanted, but let's rely on the embedding now.
+        tdl: undefined 
     };
 
   } catch (error: any) {

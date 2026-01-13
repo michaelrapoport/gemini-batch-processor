@@ -19,13 +19,17 @@ interface ChartRendererProps {
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F'];
 
 export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
-    const { type, data, xAxisKey = 'name', dataKeys = [{ key: 'value' }], title } = config;
+    // FIX: Default data to [] to prevent "Cannot read properties of undefined (reading 'length')"
+    const { type, data = [], xAxisKey = 'name', dataKeys = [{ key: 'value' }], title } = config;
     
+    // Safety check: ensure data is actually an array
+    const safeData = Array.isArray(data) ? data : [];
+
     const renderChart = () => {
         switch (type) {
             case 'bar':
                 return (
-                    <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <BarChart data={safeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey={xAxisKey} tick={{fontSize: 12}} />
                         <YAxis tick={{fontSize: 12}} />
@@ -38,7 +42,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 );
             case 'line':
                 return (
-                    <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <LineChart data={safeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey={xAxisKey} tick={{fontSize: 12}} />
                         <YAxis tick={{fontSize: 12}} />
@@ -51,7 +55,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 );
             case 'area':
                 return (
-                    <AreaChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <AreaChart data={safeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                          <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey={xAxisKey} tick={{fontSize: 12}} />
                         <YAxis tick={{fontSize: 12}} />
@@ -66,7 +70,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 return (
                     <PieChart>
                          <Pie
-                            data={data}
+                            data={safeData}
                             dataKey={dataKeys[0].key}
                             nameKey={xAxisKey}
                             cx="50%"
@@ -75,7 +79,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                             fill="#8884d8"
                             label
                         >
-                            {data.map((entry: any, index: number) => (
+                            {safeData.map((entry: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                         </Pie>
@@ -85,7 +89,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ config }) => {
                 );
              case 'radar':
                 return (
-                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={safeData}>
                         <PolarGrid />
                         <PolarAngleAxis dataKey={xAxisKey} tick={{fontSize: 10}} />
                         <PolarRadiusAxis />

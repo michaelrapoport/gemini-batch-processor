@@ -1,27 +1,112 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { BatchItem, ProcessingConfig, ProcessingStatus, ToolType, Stats } from './types';
+import { BatchItem, ProcessingConfig, ProcessingStatus, ToolType, Stats, Folder } from './types';
 import { DashboardControls } from './components/DashboardControls';
 import { FileUploader } from './components/FileUploader';
 import { ResultsLibrary } from './components/ResultsLibrary';
 import { generateResponse, extractTitle } from './services/gemini';
-import { PatentDB } from './services/db';
-import { Play, Pause, RefreshCw, Zap, Loader2 } from 'lucide-react';
+import { LibraryDB } from './services/db'; 
+import { Play, Pause, RefreshCw, Zap, Loader2, Save } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- State ---
   const [items, setItems] = useState<BatchItem[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [config, setConfig] = useState<ProcessingConfig>({
-    systemPrompt: "You are a helpful AI assistant. Analyze the provided patent or technical document. Summarize the key claims and technical architecture.",
+    systemPrompt: "You are a Professional Patent Attorney & Technical Writer. Research gaps, identify prior art, and generate a complete USPTO Patent Application in HTML5 as per the detailed workflow instructions.",
     temperature: 0.7,
     concurrency: 2,
     tool: ToolType.NONE,
-    includeCharts: false, // Default: Charts disabled
+    includeCharts: false,
+    includeTechDraw: false, 
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const isComponentMounted = useRef(true);
   
-  // Track active metadata analysis requests to enforce concurrency limit
   const analyzingIds = useRef<Set<string>>(new Set());
+
+  // --- Persistence Logic ---
+  // Load on mount
+  useEffect(() => {
+      const loadData = async () => {
+          try {
+              const data = await LibraryDB.loadState();
+              setItems(data.items);
+              setFolders(data.folders);
+          } catch (e) {
+              console.error("Failed to load library:", e);
+          } finally {
+              setIsLoaded(true);
+          }
+      };
+      loadData();
+      return () => { isComponentMounted.current = false; };
+  }, []);
+
+  // Auto-save when items or folders change (debounced could be better but sticking to direct for reliability in this demo)
+  useEffect(() => {
+      if (!isLoaded) return;
+      const save = async () => {
+          try {
+              await LibraryDB.saveState(items, folders);
+          } catch (e) {
+              console.error("Failed to auto-save:", e);
+          }
+      };
+      const timer = setTimeout(save, 1000); // 1s Debounce
+      return () => clearTimeout(timer);
+  }, [items, folders, isLoaded]);
+
+  // --- Import / Export Handlers ---
+  const handleExportLibrary = useCallback(() => {
+    const state = {
+      version: 1,
+      timestamp: Date.now(),
+      folders,
+      items
+    };
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gemini_library_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [folders, items]);
+
+  const handleImportLibrary = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isProcessing) {
+        alert("Cannot import while processing is active.");
+        return;
+    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      // Basic validation
+      if (Array.isArray(data.items) && Array.isArray(data.folders)) {
+        setItems(data.items);
+        setFolders(data.folders);
+        // Persist immediately
+        await LibraryDB.saveState(data.items, data.folders);
+        alert(`Library loaded: ${data.items.length} items, ${data.folders.length} folders.`);
+      } else {
+        alert("Invalid library file format. Expected JSON with 'items' and 'folders' arrays.");
+      }
+    } catch (err) {
+      console.error("Import failed", err);
+      alert("Failed to import library. Check console for details.");
+    }
+    // Reset input
+    e.target.value = '';
+  }, [isProcessing]);
+
 
   // --- Computed Stats ---
   const stats: Stats = useMemo(() => {
@@ -39,14 +124,6 @@ const App: React.FC = () => {
     );
   }, [items]);
 
-  // --- Lifecycle Ref ---
-  useEffect(() => {
-    isComponentMounted.current = true;
-    return () => {
-      isComponentMounted.current = false;
-    };
-  }, []);
-
   // --- Handlers ---
   const handleUpload = useCallback((newItems: BatchItem[]) => {
     setItems((prev) => [...prev, ...newItems]);
@@ -54,20 +131,38 @@ const App: React.FC = () => {
 
   const handleDelete = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    // If the item was analyzing, the promise will eventually fail to map it, which is fine.
-    // The analyzingIds set will be cleaned up in the finally block.
   }, []);
 
   const handleClearAll = useCallback(() => {
-    if (isProcessing) return; // Prevent clearing while running
+    if (isProcessing) return;
     setItems([]);
     analyzingIds.current.clear();
   }, [isProcessing]);
 
-  // --- 1. Metadata Analysis Phase (Sliding Window Batching) ---
+  // Folder Logic
+  const handleCreateFolder = (name: string) => {
+      const newFolder: Folder = {
+          id: Math.random().toString(36).substring(2),
+          name,
+          createdAt: Date.now()
+      };
+      setFolders(prev => [...prev, newFolder]);
+  };
+
+  const handleDeleteFolder = (id: string) => {
+      setFolders(prev => prev.filter(f => f.id !== id));
+      // Move items in deleted folder to Unsorted (remove folderId)
+      setItems(prev => prev.map(i => i.folderId === id ? { ...i, folderId: undefined } : i));
+  };
+
+  const handleMoveItem = (itemId: string, folderId: string | undefined) => {
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, folderId } : i));
+  };
+
+
+  // --- 1. Metadata Analysis Phase ---
   useEffect(() => {
       const analyzeMetadata = async () => {
-          // 1. Filter candidates: Items that are ANALYZING and NOT currently being fetched
           const candidates = items.filter(i => 
               i.status === ProcessingStatus.ANALYZING && 
               !analyzingIds.current.has(i.id)
@@ -75,25 +170,19 @@ const App: React.FC = () => {
           
           if (candidates.length === 0) return;
 
-          // 2. Check available concurrency slots (Max 5 concurrent metadata fetches)
           const activeCount = analyzingIds.current.size;
           const MAX_CONCURRENCY = 5;
           const availableSlots = MAX_CONCURRENCY - activeCount;
 
           if (availableSlots <= 0) return;
 
-          // 3. Take a batch that fits in the slots
           const batch = candidates.slice(0, availableSlots);
 
-          // 4. Process batch
           batch.forEach(async (itemToAnalyze) => {
-             // Mark as active immediately to prevent double-scheduling
              analyzingIds.current.add(itemToAnalyze.id);
 
              try {
-                // Local calc
                 const wordCount = itemToAnalyze.content.trim().split(/\s+/).length;
-                // API calc
                 const detectedTitle = await extractTitle(itemToAnalyze.content);
 
                 if (isComponentMounted.current) {
@@ -106,7 +195,6 @@ const App: React.FC = () => {
              } catch (error) {
                 console.error("Metadata extraction failed", error);
                 if (isComponentMounted.current) {
-                    // Fallback to filename
                     setItems(prev => prev.map(i => 
                         i.id === itemToAnalyze.id 
                         ? { 
@@ -119,67 +207,44 @@ const App: React.FC = () => {
                     ));
                 }
              } finally {
-                // Release slot
                 analyzingIds.current.delete(itemToAnalyze.id);
              }
           });
       };
 
       analyzeMetadata();
-  }, [items]); // Re-runs whenever items update (e.g., when a batch finishes and status changes to IDLE)
+  }, [items]); 
 
 
-  // --- 2. Start Processing (Versioning + Generation) ---
+  // --- 2. Start Processing (Versioning) ---
   const handleStart = useCallback(async () => {
-    // Can only start if no items are analyzing
     if (items.some(i => i.status === ProcessingStatus.ANALYZING)) return;
     
-    // Check if there are any workable items
     if (items.some(i => i.status === ProcessingStatus.IDLE || i.status === ProcessingStatus.FAILED)) {
         
-        // --- Versioning Logic ---
-        // Before starting processing, resolve versions for all IDLE items
         const idleItems = items.filter(i => i.status === ProcessingStatus.IDLE);
         
-        // We need to resolve versions asynchronously against DB
-        const updatedItems = await Promise.all(idleItems.map(async (item) => {
+        const updatedItems = idleItems.map((item) => {
             if (!item.detectedTitle || !item.wordCount) return item;
 
-            // 1. Get DB records
-            const dbRecords = await PatentDB.getByTitle(item.detectedTitle);
+            const siblings = items.filter(b => 
+                b.id !== item.id && 
+                b.detectedTitle === item.detectedTitle 
+            );
             
-            // 2. Get other batch items with same title
-            const batchSiblings = items.filter(b => 
-                b.id !== item.id && // not self
-                b.detectedTitle === item.detectedTitle // same title
-            ).map(b => ({
-                source: 'BATCH',
-                id: b.id,
-                wordCount: b.wordCount || 0
-            }));
-
-            // 3. Combine and Sort (Lowest Word Count -> Highest)
-            const allCandidates = [
-                ...dbRecords.map(r => ({ source: 'DB', id: r.id, wordCount: r.wordCount })),
-                ...batchSiblings,
-                { source: 'BATCH', id: item.id, wordCount: item.wordCount }
-            ].sort((a, b) => a.wordCount - b.wordCount);
-
-            // 4. Determine Version
-            if (allCandidates.length === 1) {
-                return { ...item, finalTitle: item.detectedTitle };
+            if (siblings.length === 0) {
+                 return { ...item, finalTitle: item.detectedTitle };
             }
-
-            // Find index of current item (1-based version)
-            const rank = allCandidates.findIndex(c => c.source === 'BATCH' && c.id === item.id) + 1;
             
+            const allCandidates = [...siblings, item].sort((a, b) => (a.wordCount||0) - (b.wordCount||0));
+            const rank = allCandidates.findIndex(c => c.id === item.id) + 1;
+
             return {
                 ...item,
                 finalTitle: `${item.detectedTitle} (v${rank})`
             };
-        }));
+        });
 
-        // Update state with versioned titles
         setItems(prev => prev.map(p => {
             const updated = updatedItems.find(u => u.id === p.id);
             return updated ? updated : p;
@@ -201,7 +266,6 @@ const App: React.FC = () => {
           response: undefined,
           tdl: undefined,
           error: undefined,
-          // Keep metadata (title/wordcount) to avoid re-analysis
       })));
   }, []);
 
@@ -211,11 +275,9 @@ const App: React.FC = () => {
     if (!isProcessing) return;
 
     const processNext = async () => {
-      // 1. Check current concurrency
       const currentProcessing = items.filter(i => i.status === ProcessingStatus.PROCESSING).length;
       if (currentProcessing >= config.concurrency) return;
 
-      // 2. Find next IDLE item
       const nextItemIndex = items.findIndex(i => i.status === ProcessingStatus.IDLE);
       
       if (nextItemIndex === -1) {
@@ -225,7 +287,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // 3. Mark as PROCESSING
       const itemToProcess = items[nextItemIndex];
       setItems(prev => {
         const next = [...prev];
@@ -233,7 +294,6 @@ const App: React.FC = () => {
         return next;
       });
 
-      // 4. Perform API Call
       try {
         const result = await generateResponse({
           content: itemToProcess.content,
@@ -241,30 +301,46 @@ const App: React.FC = () => {
           temperature: config.temperature,
           tool: config.tool,
           includeCharts: config.includeCharts,
+          includeTechDraw: config.includeTechDraw,
           titleOverride: itemToProcess.finalTitle || itemToProcess.detectedTitle
         });
 
         if (isComponentMounted.current) {
-          // Update State
+          let safeResponseText = result.text;
+          const targetTitle = itemToProcess.finalTitle || itemToProcess.detectedTitle;
+          
+          if (targetTitle) {
+              if (safeResponseText.match(/<h1[^>]*>[\s\S]*?<\/h1>/i)) {
+                  safeResponseText = safeResponseText.replace(
+                      /<h1[^>]*>[\s\S]*?<\/h1>/i, 
+                      `<h1>${targetTitle}</h1>`
+                  );
+              } else if (safeResponseText.match(/<title>[\s\S]*?<\/title>/i)) {
+                   safeResponseText = safeResponseText.replace(
+                      /<title>[\s\S]*?<\/title>/i, 
+                      `<title>${targetTitle}</title>`
+                  );
+                  const wrapperMatch = safeResponseText.match(/<div class="patent-wrapper">/i);
+                  if (wrapperMatch) {
+                      safeResponseText = safeResponseText.replace(
+                          /<div class="patent-wrapper">/i,
+                          `<div class="patent-wrapper"><header class="patent-biblio"><h1>${targetTitle}</h1></header>`
+                      );
+                  }
+              }
+          }
+
           setItems(prev => prev.map(i => 
             i.id === itemToProcess.id 
               ? { 
                   ...i, 
                   status: ProcessingStatus.COMPLETED, 
-                  response: result.text, 
+                  response: safeResponseText, 
                   tdl: result.tdl,
                   endTime: Date.now() 
                 }
               : i
           ));
-
-          // Save to IndexedDB
-          await PatentDB.add({
-              title: itemToProcess.detectedTitle || "Unknown",
-              wordCount: itemToProcess.wordCount || 0,
-              fileName: itemToProcess.file.name,
-              timestamp: new Date().toISOString()
-          });
         }
       } catch (error: any) {
         if (isComponentMounted.current) {
@@ -282,29 +358,28 @@ const App: React.FC = () => {
   }, [isProcessing, items, config]); 
 
 
-  // --- Render ---
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 p-2 rounded-lg">
                 <Zap className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400">
               Gemini Batch Processor
             </h1>
           </div>
-          <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
-             <div className="hidden sm:flex items-center gap-4 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-slate-400"></div> Total: {stats.total}</span>
+          <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
+             <div className="hidden sm:flex items-center gap-4 bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
+                <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-slate-500"></div> Total: {stats.total}</span>
                 {stats.analyzing > 0 && (
-                    <span className="flex items-center gap-1.5 text-amber-600"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing: {stats.analyzing}</span>
+                    <span className="flex items-center gap-1.5 text-amber-500"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing: {stats.analyzing}</span>
                 )}
                 <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Processing: {stats.processing}</span>
                 <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500"></div> Done: {stats.completed}</span>
-                {(stats.failed > 0) && <span className="flex items-center gap-1.5 text-red-600"><div className="w-2 h-2 rounded-full bg-red-500"></div> Failed: {stats.failed}</span>}
+                {(stats.failed > 0) && <span className="flex items-center gap-1.5 text-red-500"><div className="w-2 h-2 rounded-full bg-red-500"></div> Failed: {stats.failed}</span>}
              </div>
           </div>
         </div>
@@ -313,11 +388,8 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Left Column: Controls & Upload */}
           <div className="lg:col-span-4 space-y-6">
-            
-            {/* Action Bar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-3">
+            <div className="bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800 flex flex-col gap-3">
                <div className="grid grid-cols-2 gap-3">
                  {!isProcessing ? (
                     <button
@@ -331,7 +403,7 @@ const App: React.FC = () => {
                  ) : (
                     <button
                         onClick={handleStop}
-                        className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                        className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
                     >
                         <Pause className="w-4 h-4" /> Pause
                     </button>
@@ -340,7 +412,7 @@ const App: React.FC = () => {
                  <button
                     onClick={handleReset}
                     disabled={isProcessing || items.length === 0}
-                    className="flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <RefreshCw className="w-4 h-4" /> Reset Status
                 </button>
@@ -359,12 +431,17 @@ const App: React.FC = () => {
             />
           </div>
 
-          {/* Right Column: Results */}
           <div className="lg:col-span-8 h-full">
             <ResultsLibrary 
                 items={items} 
+                folders={folders}
                 onDelete={handleDelete}
                 onClearAll={handleClearAll}
+                onCreateFolder={handleCreateFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onMoveItem={handleMoveItem}
+                onExportLibrary={handleExportLibrary}
+                onImportLibrary={handleImportLibrary}
             />
           </div>
 

@@ -1,15 +1,13 @@
 
-const DB_NAME = 'gemini_patent_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'processed_patents';
+import { BatchItem, Folder } from '../types';
 
-export interface PatentRecord {
-    id?: number;
-    title: string;
-    wordCount: number;
-    fileName: string;
-    timestamp: string;
-}
+const DB_NAME = 'gemini_patent_library';
+const DB_VERSION = 2; // Incremented version
+const STORES = {
+    ITEMS: 'library_items',
+    FOLDERS: 'library_folders',
+    LOGS: 'processed_logs' // Legacy support if needed, or we can migrate
+};
 
 const openDB = (): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
@@ -21,39 +19,90 @@ const openDB = (): Promise<IDBDatabase> => {
 
         request.onupgradeneeded = (event) => {
             const db = (event.target as IDBOpenDBRequest).result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                store.createIndex('title', 'title', { unique: false });
-                store.createIndex('wordCount', 'wordCount', { unique: false });
+            
+            // Create Items Store
+            if (!db.objectStoreNames.contains(STORES.ITEMS)) {
+                db.createObjectStore(STORES.ITEMS, { keyPath: 'id' });
+            }
+
+            // Create Folders Store
+            if (!db.objectStoreNames.contains(STORES.FOLDERS)) {
+                db.createObjectStore(STORES.FOLDERS, { keyPath: 'id' });
             }
         };
     });
 };
 
-export const PatentDB = {
-    add: async (record: PatentRecord): Promise<void> => {
+export const LibraryDB = {
+    // --- Bulk Save (Overwrite State) ---
+    saveState: async (items: BatchItem[], folders: Folder[]): Promise<void> => {
         const db = await openDB();
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.add(record);
+            const transaction = db.transaction([STORES.ITEMS, STORES.FOLDERS], 'readwrite');
             
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+
+            const itemStore = transaction.objectStore(STORES.ITEMS);
+            const folderStore = transaction.objectStore(STORES.FOLDERS);
+
+            // Simple strategy: Clear and Rewrite (Safe for consistent state, acceptable for local app scale)
+            // Optimization: In a real app, we'd diff, but for <1000 items this is instant.
+            itemStore.clear();
+            folderStore.clear();
+
+            items.forEach(item => itemStore.put(item));
+            folders.forEach(folder => folderStore.put(folder));
         });
     },
 
-    getByTitle: async (title: string): Promise<PatentRecord[]> => {
+    // --- Load State ---
+    loadState: async (): Promise<{ items: BatchItem[], folders: Folder[] }> => {
         const db = await openDB();
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([STORE_NAME], 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const index = store.index('title');
-            // Normalize title for query? Assuming exact match for now as per "same or similar"
-            const request = index.getAll(title.trim());
+            const transaction = db.transaction([STORES.ITEMS, STORES.FOLDERS], 'readonly');
+            const itemStore = transaction.objectStore(STORES.ITEMS);
+            const folderStore = transaction.objectStore(STORES.FOLDERS);
+
+            const itemsRequest = itemStore.getAll();
+            const foldersRequest = folderStore.getAll();
+
+            transaction.oncomplete = () => {
+                resolve({
+                    items: itemsRequest.result || [],
+                    folders: foldersRequest.result || []
+                });
+            };
             
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
+            transaction.onerror = () => reject(transaction.error);
+        });
+    },
+    
+    // --- Incremental Updates (Optional, if we want granular control later) ---
+    updateItem: async (item: BatchItem): Promise<void> => {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORES.ITEMS], 'readwrite');
+            tx.objectStore(STORES.ITEMS).put(item);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    },
+    
+    deleteItem: async (id: string): Promise<void> => {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([STORES.ITEMS], 'readwrite');
+            tx.objectStore(STORES.ITEMS).delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
         });
     }
+};
+
+// Legacy support (optional, can be removed if fresh start desired)
+export const PatentDB = {
+    // Kept for backward compat if needed, but LibraryDB supersedes it
+    add: async (record: any) => {}, 
+    getByTitle: async (title: string) => []
 };

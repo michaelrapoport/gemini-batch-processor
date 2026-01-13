@@ -1,3 +1,4 @@
+
 export enum ProcessingStatus {
   ANALYZING = 'ANALYZING',
   IDLE = 'IDLE',
@@ -7,11 +8,18 @@ export enum ProcessingStatus {
   FAILED = 'FAILED',
 }
 
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface BatchItem {
   id: string;
-  file: File;
+  file: { name: string; type?: string; size?: number }; // Simplified for persistence
   content: string; // The text content of the HTML file
   status: ProcessingStatus;
+  folderId?: string; // Optional folder association
   
   // Metadata
   wordCount?: number;
@@ -25,6 +33,9 @@ export interface BatchItem {
   endTime?: number;
 }
 
+export type SortField = 'date' | 'title' | 'status' | 'wordCount';
+export type SortOrder = 'asc' | 'desc';
+
 export enum ToolType {
   NONE = 'NONE',
   GOOGLE_SEARCH = 'GOOGLE_SEARCH',
@@ -37,6 +48,7 @@ export interface ProcessingConfig {
   concurrency: number;
   tool: ToolType;
   includeCharts: boolean; // Toggle for Chart Agent
+  includeTechDraw: boolean; // Toggle for TechDraw Replacement Agent
 }
 
 export interface Stats {
