@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Upload } from 'lucide-react';
 import { BatchItem, ProcessingStatus } from '../types';
@@ -24,7 +25,12 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUpload, disabled }
         const text = await file.text();
         newItems.push({
           id: generateId(),
-          file,
+          // Store basic metadata instead of File object to ensure JSON export works
+          file: { 
+            name: file.name, 
+            size: file.size, 
+            type: file.type 
+          },
           content: text,
           // Start in ANALYZING to trigger metadata extraction
           status: ProcessingStatus.ANALYZING, 

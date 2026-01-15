@@ -60,11 +60,21 @@ const App: React.FC = () => {
 
   // --- Import / Export Handlers ---
   const handleExportLibrary = useCallback(() => {
+    // Sanitize items for export: Ensure 'file' is a plain object, not a File object
+    const serializableItems = items.map(item => ({
+        ...item,
+        file: {
+            name: item.file.name || 'unknown_file',
+            size: item.file.size || 0,
+            type: item.file.type || 'text/plain'
+        }
+    }));
+
     const state = {
       version: 1,
       timestamp: Date.now(),
       folders,
-      items
+      items: serializableItems
     };
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

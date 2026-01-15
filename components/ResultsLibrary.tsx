@@ -63,20 +63,16 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({
     
     // 1. Filter by Folder
     if (selectedFolderId === 'TRASH') {
-        // Implement trash logic later? For now, standard delete removes fully.
-        // Let's assume 'TRASH' isn't used yet in this simple version
+        // Implement trash logic later?
     } else if (selectedFolderId === 'UNSORTED') {
         result = items.filter(i => !i.folderId);
     } else if (selectedFolderId) {
         result = items.filter(i => i.folderId === selectedFolderId);
     }
     
-    // Safety check: if selectedFolderId points to a non-existent folder (after import/delete), reset to All
+    // Safety check: if selectedFolderId points to a non-existent folder
     if (selectedFolderId && selectedFolderId !== 'UNSORTED' && !folders.find(f => f.id === selectedFolderId)) {
-        // We can't update state during render, so we just return all items, 
-        // effectively handling the stale state gracefully until user clicks elsewhere.
-        // Better: this effect runs after folders prop changes, so it should re-calc correctly.
-        // Actually, let's just default to 'All' if not found.
+        // Default to All handled in render or next cycle
     }
 
     // 2. Sort
@@ -137,26 +133,45 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({
     }
   };
 
-  // Download logic (kept from previous version)
+  // Download logic (ROBUST VERSION)
   const downloadItem = (item: BatchItem) => {
-    if (!item.response) return;
-    let titleStr = item.finalTitle || item.detectedTitle || item.file.name;
-    if (!item.finalTitle && !item.detectedTitle) {
-         const h1Match = item.response.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-         if (h1Match && h1Match[1]) {
-            const div = document.createElement('div');
-            div.innerHTML = h1Match[1];
-            titleStr = div.textContent || div.innerText || 'patent';
-         }
-    }
-    const fileName = titleStr.replace(/\.[^/.]+$/, "").replace(/[^a-z0-9 \(\)\-_]/gi, '').trim().substring(0, 100);
-    let fullHtml = item.response;
-    if (!fullHtml.trim().toLowerCase().startsWith('<!doctype html')) {
-        let bodyContent = item.response;
-        if (!bodyContent.includes('class="patent-wrapper"')) {
-            bodyContent = `<div class="patent-wrapper">${bodyContent}</div>`;
+    try {
+        if (!item.response) {
+            alert("No processed content available to download.");
+            return;
         }
-        fullHtml = `<!DOCTYPE html>
+
+        // Robust Title Resolution with Safeties
+        let titleStr = item.finalTitle || item.detectedTitle || item.file?.name || "untitled_document";
+        
+        // Try to extract from HTML if everything else failed or is generic
+        if ((!item.finalTitle && !item.detectedTitle) || titleStr === "untitled_document") {
+             const h1Match = item.response.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+             if (h1Match && h1Match[1]) {
+                const div = document.createElement('div');
+                div.innerHTML = h1Match[1];
+                const extracted = div.textContent || div.innerText;
+                if (extracted && extracted.trim().length > 0) {
+                    titleStr = extracted;
+                }
+             }
+        }
+
+        // Sanitize Filename
+        const fileName = titleStr
+            .replace(/\.[^/.]+$/, "") // Remove extension if present in name
+            .replace(/[^a-z0-9 \(\)\-_]/gi, '') // Remove special chars
+            .trim()
+            .substring(0, 100) || "document"; // Fallback if sanitization kills the string
+
+        // Construct Content
+        let fullHtml = item.response;
+        if (!fullHtml.trim().toLowerCase().startsWith('<!doctype html')) {
+            let bodyContent = item.response;
+            if (!bodyContent.includes('class="patent-wrapper"')) {
+                bodyContent = `<div class="patent-wrapper">${bodyContent}</div>`;
+            }
+            fullHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -166,16 +181,21 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({
 </head>
 <body>${bodyContent}</body>
 </html>`;
+        }
+
+        const blob = new Blob([fullHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error("Download Failed", e);
+        alert("Failed to download file. See console for details.");
     }
-    const blob = new Blob([fullHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${fileName}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   // Move Logic dropdown
@@ -358,7 +378,7 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({
                         <tr className={`hover:bg-slate-800 transition-colors ${expandedId === item.id ? 'bg-slate-800' : ''}`}>
                           <td className="px-4 py-3 font-medium text-slate-300 max-w-[200px] truncate" title={item.file.name}>
                             <div className="flex flex-col">
-                                <span>{item.finalTitle || item.detectedTitle || item.file.name}</span>
+                                <span>{item.finalTitle || item.detectedTitle || item.file?.name || "Untitled"}</span>
                                 <span className="text-[10px] text-slate-500">{new Date(item.startTime || Date.now()).toLocaleDateString()}</span>
                             </div>
                           </td>
@@ -375,7 +395,7 @@ export const ResultsLibrary: React.FC<ResultsLibraryProps> = ({
                                     <button onClick={() => toggleExpand(item.id)} className={`p-1.5 rounded transition-colors ${expandedId === item.id ? 'text-indigo-400 bg-indigo-900/30' : 'text-slate-500 hover:text-indigo-400 hover:bg-indigo-900/20'}`}>
                                         {expandedId === item.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
-                                    <button onClick={() => downloadItem(item)} className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-green-900/20 rounded transition-colors">
+                                    <button onClick={() => downloadItem(item)} className="p-1.5 text-slate-500 hover:text-green-400 hover:bg-green-900/20 rounded transition-colors" title="Download HTML">
                                         <Download className="w-4 h-4" />
                                     </button>
                                   </>

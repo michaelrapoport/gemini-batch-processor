@@ -3,6 +3,7 @@ import { GoogleGenAI, Tool, Type } from "@google/genai";
 import { ToolType } from "../types";
 
 const MODEL_NAME = "gemini-3-flash-preview";
+const NAMING_MODEL_NAME = "gemini-2.5-flash";
 
 interface GenerateOptions {
   content: string;
@@ -152,45 +153,76 @@ RULES:
 5. For methods/processes, use flow_* components.
 `;
 
+const NAMING_AGENT_SYSTEM_PROMPT = `
+You are an expert Patent Archivist and Intelligent File Naming Agent.
+Your goal is to read the entire provided document text and generate a precise, professional, and descriptive filename/title.
+
+RULES:
+1. ANALYZE the full context of the document. Identifying the specific invention, technology, or subject matter is MANDATORY.
+2. FORMAT: "[Type] - [Specific Subject]" (e.g., "Patent - Quantum Encryption Key", "Draft - Hydraulic Valve System", "Memo - Q3 Financials").
+3. PROHIBITED: Do NOT use vague terms like "Untitled", "Unknown", "Document", "Draft" (without subject), "Patent Application" (without subject), "Analysis", "File".
+4. INFERENCE: If the content is sparse or lacks a clear title, you MUST INFER the subject from keywords, claims, or technical descriptions.
+5. LENGTH: Keep it under 60 characters.
+6. FILENAME SAFETY: Output a string safe for filesystems (no slashes, colons, backslashes, asterisks, question marks, quotes, angle brackets, pipes).
+7. OUTPUT: Return ONLY the title string. No markdown, no explanations, no quotes.
+`;
+
 /**
- * Clean raw title strings from LLM artifacts
+ * Clean raw title strings from LLM artifacts and ensure filename safety
  */
 const cleanRawTitle = (raw: string): string => {
-    if (!raw) return "Untitled Invention";
-    let clean = raw.replace(/^(Title|Subject|Invention):\s*/i, '');
+    if (!raw) return "";
+    // Remove label prefixes
+    let clean = raw.replace(/^(Title|Subject|Invention|Filename):\s*/i, '');
+    // Remove markdown
     clean = clean.replace(/\*\*|__/g, '').replace(/\*|_/g, '');
+    // Remove quotes
     clean = clean.replace(/^["']|["']$/g, '');
-    clean = clean.trim().replace(/[\r\n]+/g, ' ');
+    // Replace invalid filename characters with hyphens
+    clean = clean.replace(/[<>:"/\\|?*]/g, '-');
+    // Compress spaces
+    clean = clean.trim().replace(/[\r\n\s]+/g, ' ');
+
+    const lower = clean.toLowerCase();
+    // Reject vague titles if the model failed to follow instructions
+    if (lower === 'untitled' || lower === 'unknown' || lower === 'document' || lower.length < 3) {
+        return "";
+    }
+    
     return clean;
 };
 
-// Helper to get Title Metadata
+// Helper to get Title Metadata using the Naming Agent
 export const extractTitle = async (content: string): Promise<string> => {
     const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("Missing API Key");
     const ai = new GoogleGenAI({ apiKey });
     
-    const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: content,
-        config: {
-            systemInstruction: `
-              You are a Patent Analysis and Title Extraction System. 
-              TASK: Analyze the input text and extract the most accurate Technical Title for the invention.
-              RULES:
-              1. If a clear title exists (e.g., "METHOD FOR...", "SYSTEM FOR..."), use it.
-              2. If no title exists, generate a concise, accurate technical title.
-              3. Remove words like "Patent Application", "Draft", "Confidential".
-              4. Output ONLY the raw title string. Do not use quotes.
-              5. Convert to Title Case.
-              6. Format: "[Provisional/Non-Provisional] - [Title] - [Date/Version]"
-            `,
-            temperature: 0.1,
-            maxOutputTokens: 100
+    try {
+        const response = await ai.models.generateContent({
+            model: NAMING_MODEL_NAME, // gemini-2.5-flash
+            contents: content,
+            config: {
+                systemInstruction: NAMING_AGENT_SYSTEM_PROMPT,
+                temperature: 0.1, // Low temperature for deterministic, professional output
+            }
+        });
+        
+        const rawTitle = response.text || "";
+        const cleanTitle = cleanRawTitle(rawTitle);
+        
+        // Fallback if the model returns nothing or a vague title despite instructions
+        if (!cleanTitle) {
+             const fallback = `Document ${new Date().toISOString().slice(0,10)}`;
+             return fallback;
         }
-    });
-    
-    return cleanRawTitle(response.text || "");
+
+        return cleanTitle;
+
+    } catch (e) {
+        console.error("Naming Agent Failed:", e);
+        return "Untitled Document";
+    }
 };
 
 // --- TECH DRAW INJECTION LOGIC ---
